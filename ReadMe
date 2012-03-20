@@ -1,0 +1,9 @@
+Work in progress....
+
+Tasks:
+
+1) Extract song features from the hd5 files.
+2) Create a dictionary entry for each song containing all song features 
+    and insert into mongodb database
+3) Port matlab code for K nearest neighbour into python code
+

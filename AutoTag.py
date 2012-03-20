@@ -1,4 +1,13 @@
+""" Process track data from the million song dataset and create a dictionary
+	entry for each song containing all the song properties. All the properties 
+	are stored under the respective meaningful dictionary keynames. Each song is
+	then stored as a document into the song_db database. The key element for each
+	song entry is the 'song_id' represented by the primary key '_id'
 
+	 The total number of features being considered for each song is currently 19. That 
+	 number may increase depending on future ideas that come into my head.
+	
+"""
 import sys
 sys.path.append('PythonSrc')
 
@@ -8,20 +17,25 @@ import hdf5_getters
 import pymongo
 import time
 
+# Global parameters that may need to accessed by different parts of the project
+# Contents of the parameters variable is not fixed and may change depending on 
+# features and tweaks being implemented
 global parameters
+parameters = dict(
+		dataset_path = sys.argv[1],#'/home/vivek/datasets/MillionSongSubset/data/', 
+		summaryfile_path = '/home/vivek/Desktop')
+		
 
+''' Connect to the mongoDB called song_db. Make the database name customisable'''
 def connect_song_db():
 	connection = pymongo.Connection()	
 	db = connection['song_db']
 	song_db = db.song_db
 	return song_db
 
-parameters = dict(
-		dataset_path = sys.argv[1],#'/home/vivek/datasets/MillionSongSubset/data/', 
-		summaryfile_path = '/home/vivek/Desktop')
-		
 
-song = {}
+''' Traverse though all the folders in the MSD directory tree and create an array of all
+hd5 filepaths so that contents of the individual file path can be processed'''
 def get_h5_files(base_dir, ext='.h5'):
 	h5_files = []
 	for dirpath, dirname, filenames in os.walk(base_dir):
@@ -35,6 +49,7 @@ def get_h5_files(base_dir, ext='.h5'):
 					print os.path.join(dirpath, filename)+' not found'
 	return h5_files
 
+'''Compute the variance of all values in the array'''
 def variance(array):
 	if(len(array) == 0):
 		return 0
@@ -46,12 +61,15 @@ def variance(array):
 	v = sum_of_diff**2/len(array)
 	return v
 
+'''Compute mean of all values in the array'''
 def mean(array):
 	if (len(array) == 0):
 		return 0
 
 	return sum(array)/len(array)
 
+'''Split a 2D array into 12 columms so that the mean and variance for each component 
+of the 12 basis values of the pitch and variance matrix can be calculated'''
 def split_segments(array2d):
 	a0 = [];a1 = [];a2 = [];a3 = [];a4 = [];a5 = [];a6 = [];a7 = []
 	a8 = [];a9 = [];a10 = [];a11 = []
@@ -71,7 +89,10 @@ def split_segments(array2d):
 			a11.append(array2d[j][11])
 	return (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)
 
+'''This is where each song is processed and the corresponding properties are extracted. This 
+function should be pretty much self explanatory. Hope I dont forget what it is supposed to do'''
 def process_song(h5_song_file):
+	song = {}
 	song['artist_familiarity'] = hdf5_getters.get_artist_familiarity(h5)
 	song['artist_id'] = hdf5_getters.get_artist_id(h5)
 	song['artist_name'] = hdf5_getters.get_artist_name(h5)
@@ -81,6 +102,8 @@ def process_song(h5_song_file):
 	terms_freq = hdf5_getters.get_artist_terms_freq(h5)
 	terms_weight = hdf5_getters.get_artist_terms_weight(h5)
 	terms_array = []
+	# Creating a array of [term, its frequency, its weight]. Doing this for all terms associated
+	# with the artist
 	for i in range(len(terms)):
 		terms_array.append([terms[i], terms_freq[i], terms_weight[i]])	
 		
@@ -122,8 +145,10 @@ if __name__ == '__main__':
 	start_clock = time.time()
 	for fname in h5_files:
 		count += 1
-		h5 = hdf5_getters.open_h5_file_read(fname)
+		h5 = hdf5_getters.open_h5_file_read(fname) 
 		song = process_song(h5)
+
+		# Insert song to the database
 		song_db.insert(song)
 		print count
 		h5.close()
